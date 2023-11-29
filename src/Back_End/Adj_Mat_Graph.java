@@ -1,25 +1,26 @@
 package Back_End;
 import java.util.*;
+import java.io.FileWriter;
+import java.io.IOException;
+import javax.swing.JTextArea;
 
 class Vertex {
-
     public String label;
 
-    public Vertex(String lab)
-    {
+    public Vertex(String lab){
         label = lab;
     }
 }
-class WeightedDirectedGraph {
 
-    private final int MAX_VERTS = 20;
+public class Adj_Mat_Graph {
+    private final int MAX_VERTS = 30;
     private int nVerts;
     private Vertex vertexList[];
     private int adjMat[][];
     private int[] shortestPath;
     private boolean[] visited;
 
-    public WeightedDirectedGraph() {
+    public Adj_Mat_Graph() {
         vertexList = new Vertex[MAX_VERTS];
         adjMat = new int[MAX_VERTS][MAX_VERTS];
         nVerts = 0;
@@ -28,7 +29,7 @@ class WeightedDirectedGraph {
 
         for (int i = 0; i < MAX_VERTS; i++) {
             for (int j = 0; j < MAX_VERTS; j++) {
-                adjMat[i][j] = 0; // Inisialisasi matriks ketetanggaan dengan 0
+                adjMat[i][j] = 0;
             }
         }
     }
@@ -54,6 +55,7 @@ class WeightedDirectedGraph {
             }
         }
     }
+
     public void dijkstra(int startVertex) {
         Arrays.fill(shortestPath, Integer.MAX_VALUE);
         Arrays.fill(visited, false);
@@ -62,6 +64,11 @@ class WeightedDirectedGraph {
 
         for (int i = 0; i < nVerts - 1; i++) {
             int u = findMinDistanceVertex();
+
+            if (u == -1) {
+                break;
+            }
+
             visited[u] = true;
 
             for (int v = 0; v < nVerts; v++) {
@@ -72,6 +79,7 @@ class WeightedDirectedGraph {
             }
         }
     }
+
 
     public int findMinDistanceVertex() {
         int minDistance = Integer.MAX_VALUE;
@@ -94,24 +102,115 @@ class WeightedDirectedGraph {
         }
     }
 
-    public static void main(String[] args) {
-        WeightedDirectedGraph theGraph = new WeightedDirectedGraph();
 
-        theGraph.addVertex("Jl. Semeru");
-        theGraph.addVertex("Jl. Bromo");
-        theGraph.addVertex("Jl. Brigadir Riyadi");
-        theGraph.addVertex("Jl. Jaksa A. Suprapto");
+    private List<Integer> getConnectedNodes(int currentVertex, boolean[] visited) {
+        List<Integer> connectedNodes = new ArrayList<>();
+        for (int v = 0; v < nVerts; v++) {
+            if (adjMat[currentVertex][v] > 0 && !visited[v]) {
+                connectedNodes.add(v);
+            }
+        }
+        return connectedNodes;
+    }
 
-        theGraph.addEdge(0, 1, 2); // Edge dari A ke B dengan bobot 2
-        theGraph.addEdge(1, 2, 3); // Edge dari B ke C dengan bobot 3
-        theGraph.addEdge(2, 3, 4); // Edge dari C ke D dengan bobot 4
-        theGraph.addEdge(3,0,5);
+    private List<Integer> findDirectPath(int startVertex, int endVertex) {
+        if (adjMat[startVertex][endVertex] > 0) {
+            List<Integer> path = new ArrayList<>();
+            path.add(startVertex);
+            path.add(endVertex);
+            return path;
+        }
 
-        System.out.println("Edges in the weighted directed graph:");
-        theGraph.displayEdges();
-        theGraph.displayVertex(1);
-        theGraph.dijkstra(1);
-        theGraph.displayShortestPaths();
+        return null;
+    }
+
+    private boolean isReversePath(int startVertex, int endVertex) {
+        return adjMat[endVertex][startVertex] > 0;
+    }
+
+    public String[] detectRoadDirection(int startVertex, int endVertex) {
+        boolean[] visited = new boolean[MAX_VERTS];
+        Queue<Integer> queue = new LinkedList<>();
+        queue.add(startVertex);
+        visited[startVertex] = true;
+
+        List<Integer> directPath = findDirectPath(startVertex, endVertex);
+        boolean isReversePath = isReversePath(startVertex, endVertex);
+
+        if (directPath != null) {
+            if (isReversePath) {
+                return new String[]{"Perhatian: Rute dari " + vertexList[startVertex].label + " ke " + vertexList[endVertex].label + " melawan arus.\n"};
+            } else {
+                return new String[]{"Bergerak dari " + vertexList[startVertex].label + " langsung menuju " + vertexList[endVertex].label, "\nAnda telah mencapai lokasi tujuan."};
+            }
+        }
+
+        List<String> result = new ArrayList<>();
+        while (!queue.isEmpty()) {
+            int currentVertex = queue.poll();
+
+            List<Integer> connectedNodes = getConnectedNodes(currentVertex, visited);
+            for (int nextVertex : connectedNodes) {
+                if (!visited[nextVertex]) {
+                    visited[nextVertex] = true;
+                    queue.add(nextVertex);
+
+                    List<Integer> directPathFromNext = findDirectPath(nextVertex, endVertex);
+                    if (directPathFromNext != null) {
+                        result.add("Bergerak dari " + vertexList[startVertex].label + "\n");
+                        for (int vertex : directPathFromNext) {
+                            result.add("Bergerak menuju " + vertexList[vertex].label+ "\n");
+                        }
+                        result.add("Anda telah tiba di " + vertexList[endVertex].label);
+                        return result.toArray(new String[0]);
+                    }
+                }
+            }
+        }
+
+        if (isReversePath)  return new String[]{"Perhatian: Rute dari " + vertexList[startVertex].label + " ke " + vertexList[endVertex].label + " melawan arus."};
+        else return new String[]{""};
+        
+    } 
+
+    public static String generateDOT(Adj_Mat_Graph graph) {
+        StringBuilder dot = new StringBuilder();
+        dot.append("digraph WeightedDirectedGraph {\n");
+
+        for (int i = 0; i < graph.nVerts; i++) {
+            dot.append("  ").append(i).append(" [label=\"").append(graph.vertexList[i].label).append("\"];\n");
+        }
+
+        for (int i = 0; i < graph.nVerts; i++) {
+            for (int j = 0; j < graph.nVerts; j++) {
+                if (graph.adjMat[i][j] > 0) {
+                    dot.append("  ").append(i).append(" -> ").append(j).append(" [label=\"").append(graph.adjMat[i][j]).append("\"];\n");
+                }
+            }
+        }
+
+        dot.append("}\n");
+
+        return dot.toString();
+    }
+
+    public static void saveDOTFile(String filePath, String dotString) {
+        try {
+            FileWriter writer = new FileWriter(filePath);
+            writer.write(dotString);
+            writer.close();
+            System.out.println("DOT file saved successfully: " + filePath);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+    public int getIndexByLabel(String label) {
+        for (int i = 0; i < nVerts; i++) {
+            if (vertexList[i].label.equals(label)) {
+                return i;
+            }
+        }
+        return -1;
     }
 }
 
